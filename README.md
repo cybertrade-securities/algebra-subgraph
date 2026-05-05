@@ -142,3 +142,195 @@ goldsky subgraph deploy blocks/v1.0.0 --path ./subgraphs/blocks
 3. **Stable Token Pool**: Use the highest liquidity stable/native token pool for USD pricing
 4. **Whitelist Tokens**: Include major tokens for volume/liquidity tracking
 5. **Stable Coins**: Include all stable coins for accurate USD pricing
+
+## Cypher V4 Trimmed Indexing Profile
+
+This repository has been trimmed for the Cypher V4 pool metadata use case. The active target is the `cypher-v4` network config and the analytics subgraph only. The older multi-subgraph setup and stale network configs were removed because the application does not query farming, limits, positions, swaps, liquidity, fee analytics, daily/hourly snapshots, USD pricing, or aggregate protocol metrics from this subgraph.
+
+### Active config
+
+Only `config/cypher-v4` is checked in:
+
+```text
+config/cypher-v4/config.json
+config/cypher-v4/chain.ts
+```
+
+`config/cypher-v4/config.json` contains only the Graph network name and the factory deployment block:
+
+```json
+{
+  "network": "mainnet",
+  "startBlock": 23739977
+}
+```
+
+`config/cypher-v4/chain.ts` contains only the factory address:
+
+```ts
+export const FACTORY_ADDRESS = '0xfb8ed3485efa29a0e4bed93351dd51b59fc4b0f0'
+```
+
+The `startBlock` is the factory creation block. Starting there lets Graph Node process pool creation events emitted after the factory exists without scanning unrelated earlier mainnet history.
+
+### Active entities
+
+The analytics schema intentionally contains only two entities:
+
+```graphql
+type Token @entity(immutable: false) {
+  id: ID!
+  symbol: String!
+  name: String!
+  decimals: BigInt!
+}
+
+type Pool @entity(immutable: false) {
+  id: ID!
+  createdAtBlockNumber: BigInt!
+  token0: Token!
+  token1: Token!
+  deployer: Bytes!
+  plugin: Bytes!
+  pluginConfig: Int!
+  fee: BigInt!
+  communityFee: BigInt!
+  tickSpacing: BigInt!
+}
+```
+
+These fields cover the pool list and pool-by-id query shape used by the application. Removed entities include factory aggregates, bundle/pricing entities, swaps, mints, burns, collects, ticks, positions, position snapshots, transactions, pool day/hour data, token day/hour data, plugin fee analytics, and cache entities.
+
+### Indexed events
+
+The Factory datasource indexes pool creation only:
+
+```yaml
+- event: Pool(indexed address,indexed address,address)
+  handler: handlePoolCreated
+- event: CustomPool(indexed address,indexed address,indexed address,address)
+  handler: handleCustomPoolCreated
+```
+
+Both events create a `Pool` entity and create or load the corresponding `Token` entities. `CustomPool` is indexed the same way as a normal pool, except its `deployer` field comes from the event. Normal pools use the zero address for `deployer`.
+
+During pool creation the mapping binds the created pool contract and reads the initial pool metadata:
+
+- `fee`
+- `globalState().pluginConfig`
+- `globalState().communityFee`
+- `plugin`
+- `tickSpacing`
+
+Because the Factory handler performs these pool contract calls, the Factory datasource must include the `Pool` ABI in its manifest `abis` list.
+
+The Pool template only tracks metadata updates needed to keep queried fields current:
+
+```yaml
+- event: Fee(uint16)
+  handler: handleChangeFee
+- event: CommunityFee(uint16)
+  handler: handleSetCommunityFee
+- event: TickSpacing(int24)
+  handler: handleSetTickSpacing
+- event: Plugin(address)
+  handler: handlePlugin
+- event: PluginConfig(uint8)
+  handler: handlePluginConfig
+```
+
+### Removed active indexing surface
+
+The Cypher V4 analytics manifest no longer includes:
+
+- `NonfungiblePositionManager`
+- farming datasources
+- limits datasources
+- blocks datasources
+- swap, mint, burn, collect, initialize, fee cache, pricing, and interval update handlers
+- token total supply indexing
+- whitelist/stable/reference-token config
+
+The stale config directories for non-Cypher networks were also removed because they referenced the old multi-subgraph configuration model and were not valid for this trimmed deployment.
+
+### Build and deployment flow
+
+Prepare Cypher V4:
+
+```bash
+yarn prepare-network cypher-v4
+```
+
+Build analytics:
+
+```bash
+yarn build-subgraph analytics
+```
+
+`scripts/prepare-network.ts` now defaults to `cypher-v4`, reads only `FACTORY_ADDRESS`, and generates only `subgraphs/analytics/subgraph.yaml`.
+
+### Supported application queries
+
+Pool by id:
+
+```graphql
+query ($id: ID!) {
+  pool(id: $id) {
+    id
+    token0 { id symbol name decimals }
+    token1 { id symbol name decimals }
+    createdAtBlockNumber
+    deployer
+    plugin
+    pluginConfig
+    fee
+    communityFee
+    tickSpacing
+  }
+}
+```
+
+Paginated pools:
+
+```graphql
+query ($pageSize: Int!, $cursor: ID!) {
+  pools(
+    first: $pageSize
+    orderBy: id
+    orderDirection: asc
+    where: { id_gt: $cursor }
+  ) {
+    id
+    token0 { id symbol name decimals }
+    token1 { id symbol name decimals }
+    createdAtBlockNumber
+    deployer
+    plugin
+    pluginConfig
+    fee
+    communityFee
+    tickSpacing
+  }
+}
+```
+
+A minimal id-only query is also supported:
+
+```graphql
+query ($id: ID!) {
+  pool(id: $id) {
+    id
+  }
+}
+```
+
+### Verification performed
+
+The trimmed Cypher V4 subgraph was verified with:
+
+```bash
+COREPACK_ENABLE_AUTO_PIN=0 corepack yarn prepare-network cypher-v4
+COREPACK_ENABLE_AUTO_PIN=0 corepack yarn build-subgraph analytics
+```
+
+Linting is currently blocked before source checks by the repository ESLint config referencing `prettier/@typescript-eslint`, which was removed from `eslint-config-prettier` in v8.
