@@ -27,6 +27,8 @@ dataSources:
           file: ../../abis/ERC20SymbolBytes.json
         - name: ERC20NameBytes
           file: ../../abis/ERC20NameBytes.json
+        - name: Pool
+          file: ../../abis/pool.json
       eventHandlers:
         - event: Pool(indexed address,indexed address,address)
           handler: handlePoolCreated
