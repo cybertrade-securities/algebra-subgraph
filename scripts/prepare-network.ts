@@ -88,19 +88,7 @@ function normalizeAddresses(chainContent: string): string {
     (match, prefix, address, suffix) => prefix + address.toLowerCase() + suffix
   );
   
-  // Normalize REFERENCE_TOKEN
-  chainContent = chainContent.replace(
-    /(export const REFERENCE_TOKEN = ')([^']+)(')/g,
-    (match, prefix, address, suffix) => prefix + address.toLowerCase() + suffix
-  );
-  
-  // Normalize STABLE_TOKEN_POOL
-  chainContent = chainContent.replace(
-    /(export const STABLE_TOKEN_POOL = ')([^']+)(')/g,
-    (match, prefix, address, suffix) => prefix + address.toLowerCase() + suffix
-  );
-  
-  // Normalize arrays of addresses (WHITELIST_TOKENS, STABLE_COINS, etc.)
+  // Normalize address strings in optional network-specific constants.
   chainContent = chainContent.replace(
     /('0x[a-fA-F0-9]+')/g,
     (match, address) => address.toLowerCase()
@@ -123,7 +111,7 @@ console.log(`📋 Using chain configuration from: ${networkChainPath}`);
 // Function to extract values from chain.ts file
 function extractConfigFromChainFile(chainFilePath: string): { 
   factoryAddress: string; 
-  nonfungiblePositionManagerAddress: string;
+  nonfungiblePositionManagerAddress?: string;
   eternalFarmingAddress?: string;
   limitOrderAddress?: string;
 } {
@@ -146,8 +134,8 @@ function extractConfigFromChainFile(chainFilePath: string): {
     const limitOrderMatch = chainContent.match(/export const LIMIT_ORDER_ADDRESS = '([^']+)'/);
     const limitOrderAddress = limitOrderMatch ? limitOrderMatch[1] : undefined;
     
-    if (!factoryAddress || !nonfungiblePositionManagerAddress) {
-      throw new Error('Could not extract required addresses from chain.ts');
+    if (!factoryAddress) {
+      throw new Error('Could not extract required FACTORY_ADDRESS from chain.ts');
     }
     
     return { 
@@ -208,8 +196,14 @@ function processSubgraphTemplate(
       .replace(/{{NETWORK_NAME}}/g, network)
       .replace(/{{NETWORK}}/g, networkConfig.network)
       .replace(/{{FACTORY_ADDRESS}}/g, addresses.factoryAddress)
-      .replace(/{{NONFUNGIBLE_POSITION_MANAGER_ADDRESS}}/g, addresses.nonfungiblePositionManagerAddress)
       .replace(/{{START_BLOCK}}/g, startBlock.toString());
+
+    if (addresses.nonfungiblePositionManagerAddress) {
+      subgraphContent = subgraphContent.replace(
+        /{{NONFUNGIBLE_POSITION_MANAGER_ADDRESS}}/g,
+        addresses.nonfungiblePositionManagerAddress
+      );
+    }
     
     // Replace farming-specific placeholders
     if (addresses.eternalFarmingAddress) {
@@ -241,8 +235,7 @@ try {
     throw new Error('Network configuration not loaded');
   }
   
-  // Process each subgraph
-  const subgraphs = ['analytics', 'farming', 'blocks', 'limits'];
+  const subgraphs = network === 'cypher-v4' ? ['analytics'] : ['analytics', 'farming', 'blocks', 'limits'];
   let processedCount = 0;
   
   for (const subgraphName of subgraphs) {
@@ -264,14 +257,19 @@ try {
   process.exit(1);
 }
 
+const preparedSubgraphs = network === 'cypher-v4' ? ['analytics'] : ['analytics', 'farming', 'blocks', 'limits'];
+
 console.log('✅ Network preparation complete!');
 console.log('📁 Files updated:');
-console.log(`  - subgraphs/*/subgraph.yaml (generated from templates)`);
-console.log(`  - subgraphs/*/src/utils/chain.ts (copied and normalized from config/${network}/chain.ts)`);
-console.log(`🔧 All token addresses normalized to lowercase`);
+for (const subgraphName of preparedSubgraphs) {
+  console.log(`  - subgraphs/${subgraphName}/subgraph.yaml (generated from template)`);
+  if (subgraphName === 'analytics') {
+    console.log(`  - subgraphs/${subgraphName}/src/utils/chain.ts (copied and normalized from config/${network}/chain.ts)`);
+  }
+}
+console.log(`🔧 Address constants normalized to lowercase`);
 console.log(`🚀 Ready to build for ${network}!`);
 console.log(`💡 Next steps:`);
-console.log(`  cd subgraphs/analytics && yarn codegen && yarn build    # Build analytics subgraph`);
-console.log(`  cd subgraphs/farming && yarn codegen && yarn build # Build farming subgraph (if configured)`);
-console.log(`  cd subgraphs/blocks && yarn codegen && yarn build  # Build blocks subgraph (if configured)`);
-console.log(`  cd subgraphs/limits && yarn codegen && yarn build  # Build limits subgraph (if configured)`);
+for (const subgraphName of preparedSubgraphs) {
+  console.log(`  cd subgraphs/${subgraphName} && yarn codegen && yarn build`);
+}

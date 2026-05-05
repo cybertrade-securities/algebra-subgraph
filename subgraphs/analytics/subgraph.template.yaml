@@ -27,49 +27,11 @@ dataSources:
           file: ../../abis/ERC20SymbolBytes.json
         - name: ERC20NameBytes
           file: ../../abis/ERC20NameBytes.json
-        - name: Pool
-          file: ../../abis/pool.json
       eventHandlers:
         - event: Pool(indexed address,indexed address,address)
           handler: handlePoolCreated
         - event: CustomPool(indexed address,indexed address,indexed address,address)
           handler: handleCustomPoolCreated
-        - event: DefaultCommunityFee(uint16)
-          handler: handleNewCommunityFee
-  - kind: ethereum/contract
-    name: NonfungiblePositionManager
-    network: {{NETWORK}}
-    source:
-      address: '{{NONFUNGIBLE_POSITION_MANAGER_ADDRESS}}'
-      abi: NonfungiblePositionManager
-      startBlock: {{START_BLOCK}}
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.6
-      language: wasm/assemblyscript
-      file: ./src/mappings/position-manager.ts
-      entities:
-        - Pool
-        - Token
-        - Deposit
-      abis:
-        - name: NonfungiblePositionManager
-          file: ../../abis/NonfungiblePositionManager.json
-        - name: Pool
-          file: ../../abis/pool.json
-        - name: Factory
-          file: ../../abis/factory.json
-        - name: ERC20
-          file: ../../abis/ERC20.json
-      eventHandlers:
-        - event: Collect(indexed uint256,address,uint256,uint256)
-          handler: handleCollect
-        - event: DecreaseLiquidity(indexed uint256,uint128,uint256,uint256)
-          handler: handleDecreaseLiquidity
-        - event: IncreaseLiquidity(indexed uint256,uint128,uint128,uint256,uint256,address)
-          handler: handleIncreaseLiquidity
-        - event: Transfer(indexed address,indexed address,indexed uint256)
-          handler: handleTransfer
 templates:
   - kind: ethereum/contract
     name: Pool
@@ -87,27 +49,9 @@ templates:
       abis:
         - name: Pool
           file: ../../abis/pool.json
-        - name: Factory
-          file: ../../abis/factory.json
-        - name: ERC20
-          file: ../../abis/ERC20.json
       eventHandlers:
-        - event: Initialize(uint160,int24)
-          handler: handleInitialize
-        - event: Swap(indexed address,indexed address,int256,int256,uint160,uint128,int24)
-          handler: handleSwap
-        - event: SwapFee(indexed address,uint24,uint24)
-          handler: handleSwapFee
-        - event: Mint(address,indexed address,indexed int24,indexed int24,uint128,uint256,uint256)
-          handler: handleMint
-        - event: Burn(indexed address,indexed int24,indexed int24,uint128,uint256,uint256)
-          handler: handleBurn
-        - event: BurnFee(indexed address,uint24)
-          handler: handleBurnFee
         - event: Fee(uint16)
           handler: handleChangeFee
-        - event: Collect(indexed address,address,indexed int24,indexed int24,uint128,uint128)
-          handler: handleCollect
         - event: CommunityFee(uint16)
           handler: handleSetCommunityFee
         - event: TickSpacing(int24)

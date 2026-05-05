@@ -4,7 +4,10 @@ import { ERC20SymbolBytes } from '../types/Factory/ERC20SymbolBytes'
 import { ERC20NameBytes } from '../types/Factory/ERC20NameBytes'
 import { StaticTokenDefinition } from './staticTokenDefinition'
 import { BigInt, Address } from '@graphprotocol/graph-ts'
-import { isNullEthValue } from '.'
+
+function isNullEthValue(value: string): boolean {
+  return value == '0x0000000000000000000000000000000000000000000000000000000000000001'
+}
 
 
 export function fetchTokenSymbol(tokenAddress: Address): string {
@@ -61,17 +64,6 @@ export function fetchTokenName(tokenAddress: Address): string {
   }
 
   return nameValue
-}
-
-export function fetchTokenTotalSupply(tokenAddress: Address): BigInt {
-  let contract = ERC20.bind(tokenAddress)
-  let totalSupplyValue = BigInt.fromString("1")
-  let totalSupplyResult = contract.try_totalSupply() 
-  if (!totalSupplyResult.reverted) {
-    let totalSupply = contract.totalSupply()
-    totalSupplyValue = totalSupply
-  }
-  return totalSupplyValue as BigInt
 }
 
 export function fetchTokenDecimals(tokenAddress: Address): BigInt {
